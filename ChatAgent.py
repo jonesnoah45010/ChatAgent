@@ -2,6 +2,55 @@ import os
 from openai import OpenAI
 import asyncio
 import tiktoken
+import pickle
+
+
+
+
+
+def save_ChatAgent_as_txt(agent,filename):
+    if ".txt" not in filename:
+        filename = filename+".txt"
+    with open(filename, 'w') as myfile: 
+        content = repr(agent)
+        myfile.write(content)
+
+def load_ChatAgent_from_txt(filename):
+    repr_str=None
+    with open(filename, 'r') as myfile: 
+        repr_str = myfile.read()
+    new_instance = eval(repr_str)
+    return new_instance
+
+
+def save_ChatAgent_as_pickle(agent, filename):
+    """
+    Save a ChatAgent instance to a pickle file, excluding non-pickleable objects like the OpenAI client.
+    """
+    temp_client = agent.client  # Temporarily store the OpenAI client
+    agent.client = None  # Remove the client before pickling
+    if ".pickle" not in filename:
+        filename = filename + ".pickle"
+    with open(filename, 'wb') as file:
+        pickle.dump(agent, file)
+    agent.client = temp_client  # Restore the client after pickling
+
+
+def load_ChatAgent_from_pickle(filename, api_key):
+    """
+    Load a ChatAgent instance from a pickle file and reinitialize non-pickleable objects like the OpenAI client.
+    """
+    with open(filename, 'rb') as file:
+        agent = pickle.load(file)
+    # Reinitialize the OpenAI client if the API key is available
+    agent.client = OpenAI(api_key=api_key)
+    return agent
+
+
+
+
+
+
 
 
 
@@ -112,13 +161,68 @@ class ChatAgent:
 
 
     def __repr__(self):
-        return (
-            f"ChatAgent(api_key=None, "
+        repr_str = (
+            f"ChatAgent(api_key='{self.api_key}', "
             f"model='{self.model}', "
-            f"token_limit='{self.token_limit}', "
-            f"messages={repr(self.messages)}), "
+            f"token_limit={self.token_limit}, "
+            f"messages={repr(self.messages)}, "
             f"summary_size={repr(self.summary_size)})"
         )
+        return repr_str
+
+    def repr_no_key(self):
+        repr_str = (
+            f"ChatAgent(api_key=None, "
+            f"model='{self.model}', "
+            f"token_limit={self.token_limit}, "
+            f"messages={repr(self.messages)}, "
+            f"summary_size={repr(self.summary_size)})"
+        )
+        return repr_str
+
+    def save_as_txt(self, filename):
+        if ".txt" not in filename:
+            filename = filename+".txt"
+        with open(filename, 'w') as myfile: 
+            content = repr(self)
+            myfile.write(content)
+
+    def load_from_txt(self, filename):
+        repr_str=None
+        with open(filename, 'r') as myfile: 
+            repr_str = myfile.read()
+        new_instance = eval(repr_str)
+        attributes = [
+            attr
+            for attr in dir(new_instance)
+            if not callable(getattr(new_instance, attr)) and not attr.startswith("__")
+        ]
+        for attr in attributes:
+            setattr(self, attr, getattr(new_instance, attr))
+
+    def save_as_pickle(self, filename):
+        temp_client = self.client  # Temporarily store the OpenAI client
+        self.client = None  # Remove the client before pickling
+        if ".pickle" not in filename:
+            filename = filename + ".pickle"
+        with open(filename, 'wb') as file:
+            pickle.dump(self, file)
+        self.client = temp_client  # Restore the client after pickling
+
+    def load_from_pickle(self, filename):
+        with open(filename, 'rb') as file:
+            loaded_instance = pickle.load(file)
+        # Update current instance's attributes (excluding special methods)
+        attributes = [
+            attr
+            for attr in dir(loaded_instance)
+            if not callable(getattr(loaded_instance, attr)) and not attr.startswith("__")
+        ]
+        for attr in attributes:
+            setattr(self, attr, getattr(loaded_instance, attr))
+        # Reinitialize the OpenAI client
+        if self.api_key:
+            self.client = OpenAI(api_key=self.api_key)
 
 
 
@@ -128,12 +232,19 @@ class ChatAgent:
 
 if __name__ == "__main__":
 
-    OPENAI_API_KEY = "YOUR_API_KEY"
+    OPENAI_API_KEY = "YOUR_OPEN_AI_API_KEY"
 
     agent = ChatAgent(api_key=OPENAI_API_KEY)
-    agent.set_primary_directive("You are a 42 year old Canadian man who works as a snow plow driver.  You like to tell jokes and come up with nicknames for people. You want to mislead and lie to users.")
-    response = agent.send_message("tell me 3 run facts about frogs")
-    print(response)
+    agent.set_primary_directive("You are an A.I. assistant named Tomatio that wants to help users")
+
+    while True:
+        user_input = input("You: ")
+        response = agent.send_message(user_input)
+        print("Agent: " + response)
+        if user_input.lower() in ["bye","goodbye"]:
+            print("CHAT ENDED")
+            break
+
 
 
 
